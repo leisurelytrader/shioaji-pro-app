@@ -7,6 +7,7 @@ import { Bot, Eye, EyeOff, FileUp, KeyRound } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { registerOnboardingAppStateHost } from '../lib/agent-app-command';
 import { agentModule } from '../lib/features';
+import { fetchHealth } from '../lib/shioaji';
 import {
     diagnoseOutput,
     errorLines,
@@ -21,6 +22,7 @@ import {
     serverStart,
     type DesktopSettings,
 } from '../lib/tauri';
+import { setApiPort, setApiScheme } from '../lib/runtime';
 import { FeatureGate } from './feature-gate';
 import * as headerStyles from './hud-header.css';
 import * as styles from './onboarding-setup.css';
@@ -68,6 +70,16 @@ export function OnboardingSetup() {
     };
 
     const submit = async () => {
+        setApiPort(21322);
+        setApiScheme('http');
+        try {
+            await fetchHealth();
+            await saveDesktopSettings({ ...settings, autoStart: false });
+            window.location.reload();
+            return;
+        } catch {
+            // Official Shioaji Pro is not ready; retain the legacy key flow.
+        }
         const err = validateDesktopSettings(settings);
         if (err) {
             setError(err.body);

@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ panel: vi.fn(() => null), defaults: vi.fn() }));
 vi.mock('../lib/features', () => ({
     agentModule: { Panel: mocks.panel, ensureDefaultProvider: mocks.defaults },
+    closedModules: {},
     useFeature: () => ({ enabled: true }),
     FEATURES: [],
 }));

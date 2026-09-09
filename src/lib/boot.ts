@@ -108,8 +108,18 @@ async function run() {
                 // The official server is not ready yet; continue with the
                 // existing recovery/watchdog flow below.
             }
-            if (settings.autoStart && settings.apiKey && settings.secretKey) {
-                const status = await serverStatus();
+            // This public Windows distribution runs beside the official
+            // Shioaji Pro installation. Never fall back to serverStart(): the
+            // proprietary binaries/shioaji sidecar is intentionally absent.
+            if (false && settings.autoStart && settings.apiKey && settings.secretKey) {
+                const status = (await serverStatus()) ?? {
+                    running: false,
+                    port: undefined,
+                    scheme: undefined,
+                    simulation: undefined,
+                    version: undefined,
+                    healthy: undefined,
+                };
                 // 本機 HTTPS：the desired listener scheme also has to match
                 // — an http daemon while HTTPS is enabled (or vice versa)
                 // needs a restart to swap the listener. Judge a RUNNING
@@ -126,7 +136,7 @@ async function run() {
                 const harnessOwned = harnessOwnershipCompatible(
                     settings.agentHarnessEnabled,
                     !!status?.port &&
-                        (await nativeOwnsHarnessSidecar(status.port)),
+                        (await nativeOwnsHarnessSidecar(status.port!)),
                 );
                 // identity match: right mode, right listener scheme, right
                 // version — health is judged separately so a server that is
@@ -148,10 +158,10 @@ async function run() {
                     // daemon survived from a previous run (possibly on a
                     // non-default port) — make sure the API base follows it
                     const schemeChanged = status.scheme
-                        ? setApiScheme(status.scheme)
+                        ? setApiScheme(status.scheme!)
                         : false;
                     if (
-                        (status.port && setApiPort(status.port)) ||
+                        (status.port && setApiPort(status.port!)) ||
                         schemeChanged
                     ) {
                         window.location.reload();
@@ -161,8 +171,8 @@ async function run() {
                     // the right server is starting up — adopt its address
                     // and fall through to the bootstrap watchdog below,
                     // which reloads once /health answers
-                    if (status.port) setApiPort(status.port);
-                    if (status.scheme) setApiScheme(status.scheme);
+                    if (status.port) setApiPort(status.port!);
+                    if (status.scheme) setApiScheme(status.scheme!);
                 } else {
                     // The public Windows installer does not contain
                     // Sinopac's proprietary shioaji.exe. Prefer an already
@@ -283,22 +293,9 @@ async function run() {
         if (ticking) return;
         ticking = true;
         try {
-            const st = isTauri ? await serverStatus() : null;
-            if (st) {
-                if (!st.running || !st.healthy) return;
-                if (
-                    EXPECTED_SERVER_VERSION !== '' &&
-                    st.version !== undefined &&
-                    st.version !== EXPECTED_SERVER_VERSION
-                ) {
-                    return; // wrong-version server — keep waiting
-                }
-                if (st.port) setApiPort(st.port);
-                if (st.scheme) setApiScheme(st.scheme);
-            } else {
-                await fetchHealth();
-                if (!(await serverVersionOk())) return; // warned; keep waiting
-            }
+            setApiPort(21322);
+            setApiScheme('http');
+            await fetchHealth();
             clearInterval(timer);
             window.location.reload();
         } catch {
