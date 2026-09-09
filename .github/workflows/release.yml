@@ -67,7 +67,23 @@ jobs:
           if ($size -lt 100000) {
             throw "Collector sidecar is unexpectedly small: $size bytes"
           }
-          Write-Host "Collector sidecar ready: $sidecar ($size bytes)"
+          $collector = Start-Process -FilePath (Resolve-Path $sidecar) -PassThru -WindowStyle Hidden
+          try {
+            $healthy = $false
+            for ($attempt = 0; $attempt -lt 20; $attempt++) {
+              Start-Sleep -Milliseconds 250
+              try {
+                $response = Invoke-RestMethod 'http://127.0.0.1:8787/health' -TimeoutSec 2
+                if ($response.ok -eq $true) { $healthy = $true; break }
+              } catch { }
+            }
+            if (!$healthy) {
+              throw 'Collector executable did not expose /health; SEA blob may not be embedded'
+            }
+          } finally {
+            Stop-Process -Id $collector.Id -Force -ErrorAction SilentlyContinue
+          }
+          Write-Host "Collector sidecar ready and healthy: $sidecar ($size bytes)"
 
       - name: Run frontend unit tests
         run: pnpm test
