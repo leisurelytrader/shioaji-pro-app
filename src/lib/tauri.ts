@@ -30,7 +30,6 @@ import {
 } from './spawn-keys';
 import {
     cacheAgentHarnessEnabled,
-    resolveAgentHarnessSetting,
 } from './agent-harness-state';
 import {
     harnessOwnershipCompatible,
@@ -1016,22 +1015,20 @@ const EMPTY_SETTINGS: DesktopSettings = {
     caPath: '',
     caPasswd: '',
     httpsEnabled: false,
-    agentHarnessEnabled: true,
+    // The public desktop build attaches to the official external server.
+    // Its native Agent Harness commands are not bundled in this host.
+    agentHarnessEnabled: false,
 };
 
 export async function loadDesktopSettings(): Promise<DesktopSettings> {
     if (!isTauri) return { ...EMPTY_SETTINGS };
     const { LazyStore } = await import('@tauri-apps/plugin-store');
     const store = new LazyStore('settings.json');
-    const safeDefaultMigrated =
-        (await store.get<boolean>('agentHarnessSafeDefaultV1')) ?? false;
-    const storedAgentHarnessEnabled = await store.get<boolean>(
-        'agentHarnessEnabled',
-    );
-    const agentHarnessEnabled = resolveAgentHarnessSetting(
-        storedAgentHarnessEnabled,
-        safeDefaultMigrated,
-    );
+    // Do not let settings from an older build call commands that are not
+    // registered by the external-server desktop host (for example
+    // `agent_harness_post`). Human UI requests still use the normal HTTP API;
+    // Agent-initiated mutations remain fail-closed when the flag is false.
+    const agentHarnessEnabled = false;
     if (!safeDefaultMigrated) {
         await store.set('agentHarnessEnabled', agentHarnessEnabled);
         await store.set('agentHarnessSafeDefaultV1', true);
@@ -1078,6 +1075,14 @@ export async function setAgentHarnessEnabled(
     enabled: boolean,
 ): Promise<SetAgentHarnessResult> {
     if (!isTauri) throw new Error('Agent Harness 只能由 Desktop native host 切換');
+    if (enabled) {
+        throw new Error('目前外部官方 Shioaji 模式未提供 native Agent Harness，請保持停用');
+    }
+    const settings = await loadDesktopSettings();
+    await saveDesktopSettings({ ...settings, agentHarnessEnabled: false });
+    cacheAgentHarnessEnabled(false);
+    return { restarted: false, portChanged: false };
+    /*
     // Enabling against an ADOPTED sidecar (crash/force-quit orphan) used to
     // dead-end on the native ownership check with no way out of the settings
     // dialog — recover by respawning natively first. Disable is left as-is:
@@ -1095,6 +1100,7 @@ export async function setAgentHarnessEnabled(
         restarted: recovered !== null,
         portChanged: recovered?.portChanged ?? false,
     };
+    */
 }
 
 // native file picker for the Sinopac.pfx certificate
