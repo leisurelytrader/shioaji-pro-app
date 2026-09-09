@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-shioaji}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-shioaji_market}
+    volumes:
+      - shioaji-market-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  collector:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: shioaji-private-market-collector:local
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # PostgreSQL is addressed by Compose service name, not localhost.
+      DATABASE_URL: postgres://${POSTGRES_USER:-shioaji}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-shioaji_market}
+      COLLECTOR_HOST: 0.0.0.0
+      COLLECTOR_PORT: 8787
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:${COLLECTOR_PORT:-8787}:8787"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  shioaji-market-data:
+    name: shioaji-market-data

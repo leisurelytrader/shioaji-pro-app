@@ -760,6 +760,47 @@ export function IndicatorSettingsModal({
                                     }
                                 />
                             </label>
+                            {inst.type === 'private-kdj-divergence' && (
+                                <>
+                                    <div className={styles.sectionTitle}>
+                                        背離標籤
+                                    </div>
+                                    <label className={styles.fieldRow}>
+                                        <span>文字大小</span>
+                                        <select
+                                            className={styles.fieldSelect}
+                                            value={inst.divergenceLabelSize ?? 1}
+                                            onChange={(e) =>
+                                                onPatch({
+                                                    divergenceLabelSize: Number(e.target.value) as 0 | 1 | 2 | 3,
+                                                })
+                                            }
+                                        >
+                                            <option value={0}>隱藏文字</option>
+                                            <option value={1}>小</option>
+                                            <option value={2}>中</option>
+                                            <option value={3}>大</option>
+                                        </select>
+                                    </label>
+                                    <label className={styles.fieldRow}>
+                                        <span>箭頭大小</span>
+                                        <select
+                                            className={styles.fieldSelect}
+                                            value={inst.divergenceArrowSize ?? 2}
+                                            onChange={(e) =>
+                                                onPatch({
+                                                    divergenceArrowSize: Number(e.target.value) as 1 | 2 | 3 | 4,
+                                                })
+                                            }
+                                        >
+                                            <option value={1}>小</option>
+                                            <option value={2}>中</option>
+                                            <option value={3}>大</option>
+                                            <option value={4}>特大</option>
+                                        </select>
+                                    </label>
+                                </>
+                            )}
                         </>
                     )}
                     {tab === 'visibility' && (

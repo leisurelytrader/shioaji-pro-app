@@ -91,7 +91,8 @@ async function throwApiError(res: Response): Promise<never> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-    const res = await doFetch(base() + path);
+    const url = /^https?:\/\//.test(path) ? path : base() + path;
+    const res = await doFetch(url);
     if (!res.ok) await throwApiError(res);
     return res.json() as Promise<T>;
 }

@@ -5,6 +5,7 @@ import {
     AreaSeries,
     CandlestickSeries,
     ColorType,
+    createSeriesMarkers,
     createChart,
     HistogramSeries,
     LineSeries,
@@ -13,9 +14,11 @@ import {
     type IChartApi,
     type IPriceLine,
     type ISeriesApi,
+    type ISeriesMarkersPluginApi,
     type MouseEventParams,
     type SeriesDataItemTypeMap,
     type UTCTimestamp,
+    type Time,
 } from 'lightweight-charts';
 import {
     ArrowDown,
@@ -51,6 +54,7 @@ import {
     saveInstances,
     type IndicatorInstance,
 } from '../lib/indicator-defs';
+import { closedModules } from '../lib/features';
 // side-effect import順序：custom-indicators 在 module 載入時就把已存的
 // 自訂指標註冊進 DEF_BY_TYPE，loadInstances() 的型別過濾才不會把它們丟掉
 import { subscribeCustoms } from '../lib/custom-indicators';
@@ -69,6 +73,7 @@ import { ACTIVE_ORDER_STATUSES, type Trade } from '../lib/types/order';
 import { fmtPrice } from '../lib/utils/format';
 import { roundToTick } from '../lib/utils/ticksize';
 import { getChartColors, useThemeSettings } from '../lib/theme-store';
+import { useLargeOrderEvents, useLargeOrderSettings } from '../lib/large-order';
 import {
     aggregate,
     dateStrOffset,
@@ -139,6 +144,8 @@ export function CandleChart({
     // throw inside the effect, which unmounts the whole app (issue #1)
     const loadedKeyRef = useRef('');
     const quote = useQuote(contract.code);
+    const largeOrderEvents = useLargeOrderEvents();
+    const largeOrderSettings = useLargeOrderSettings(contract.code);
     const tf = TIMEFRAMES[tfIdx] ?? TIMEFRAMES[1];
     const themeSettings = useThemeSettings();
     const colors = getChartColors(themeSettings);
@@ -159,6 +166,27 @@ export function CandleChart({
     const [pickerOpen, setPickerOpen] = useState(false);
     const [settingsFor, setSettingsFor] = useState<string | null>(null);
     const [legendMenuFor, setLegendMenuFor] = useState<string | null>(null);
+
+    // Private desktop modules may declare indicators that should be present
+    // on the native chart without replacing the public indicator registry.
+    // The declaration is applied once, persisted with the normal instances
+    // store, and remains removable through the existing indicator UI.
+    useEffect(() => {
+        const defaults = closedModules.chartOverlay?.defaultIndicators ?? [];
+        if (defaults.length === 0) return;
+        setInstances((current) => {
+            let next = current;
+            for (const spec of defaults) {
+                if (!DEF_BY_TYPE.has(spec.type) || next.some((item) => item.type === spec.type)) continue;
+                const instance = newInstance(spec.type);
+                if (spec.params) instance.params = { ...instance.params, ...spec.params };
+                next = [...next, instance];
+            }
+            if (next === current) return current;
+            saveInstances(next);
+            return next;
+        });
+    }, []);
     // instances snapshot taken when settings opens — 取消 restores it
     const settingsSnapshotRef = useRef<string>('');
     // legend live values: instId -> per-output {label,text,color}
@@ -187,6 +215,9 @@ export function CandleChart({
     const paneHeightsRef = useRef(new Map<string, number>());
     // 副圖 legend 定位：instId -> pane 在 chartHost 內的 top offset px
     const [paneTops, setPaneTops] = useState<Record<string, number>>({});
+    const [divergenceLabels, setDivergenceLabels] = useState<
+        { left: number; top: number; text: string; color: string; fontSize: number }[]
+    >([]);
     const paneRoRef = useRef<ResizeObserver | null>(null);
     const [dataVersion, setDataVersion] = useState(0);
     const barsRef = useRef<Candle[]>([]);
@@ -221,6 +252,7 @@ export function CandleChart({
     const contractRef = useRef(contract);
     contractRef.current = contract;
     const lastPriceRef = useRef<number | null>(null);
+    const largeOrderMarkersRef = useRef<ISeriesMarkersPluginApi<Time> | null>(null);
 
     // legend readout — crosshair position when hovering, latest bar otherwise
     const fmtLegendVal = (v: number, precision?: number) =>
@@ -286,6 +318,17 @@ export function CandleChart({
                 },
             },
             rightPriceScale: { borderColor: c.border },
+            localization: {
+                // KBars stores Taiwan wall-clock time in a UTC-encoded
+                // timestamp so the chart is timezone-independent. Format it
+                // with UTC getters to display that wall clock unchanged.
+                timeFormatter: (time: Time) => {
+                    if (typeof time !== 'number') return '';
+                    const d = new Date(time * 1000);
+                    const pad = (value: number) => String(value).padStart(2, '0');
+                    return `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+                },
+            },
             timeScale: {
                 borderColor: c.border,
                 timeVisible: true,
@@ -416,6 +459,7 @@ export function CandleChart({
             chartRef.current = null;
             candleSeriesRef.current = null;
             volSeriesRef.current = null;
+            largeOrderMarkersRef.current = null;
         };
     }, []);
 
@@ -693,11 +737,8 @@ export function CandleChart({
                 close: price,
                 volume: quote?.tick?.volume ?? 0,
             };
-            // a fresh bucket = the previous bar closed — keep barsRef in
-            // sync (history paging re-attaches this tail) and recompute
-            // indicators once per bar close
+            // A fresh bucket closes the previous bar; keep barsRef in sync.
             barsRef.current.push(bar);
-            setDataVersion((v) => v + 1);
         } else {
             bar.high = Math.max(bar.high, price);
             bar.low = Math.min(bar.low, price);
@@ -725,6 +766,10 @@ export function CandleChart({
         // 歷史載入失敗後 live bar 已開始堆 — 圖上有東西就不該再掛
         // 「無 K 線資料」（同值 setState React 會 bail out）
         setEmpty(false);
+        // Recompute K/D/J and other indicators on every live price update,
+        // not only when a new timeframe bucket opens. This keeps the current
+        // (unclosed) candle's indicator endpoint moving with the market.
+        setDataVersion((v) => v + 1);
     }, [liveQuote, quote?.tick?.volume, contract.code, tf.minutes]);
 
     // 自訂指標增刪改 → 重算指標 effect；被刪掉的型別把殘留實例一併清掉
@@ -742,6 +787,53 @@ export function CandleChart({
             }),
         [],
     );
+
+    // Large-order events share the existing candle series marker layer. The
+    // event is snapped to the containing candle so historical search results
+    // and live alerts use the same visual path.
+    useEffect(() => {
+        const series = candleSeriesRef.current;
+        const chart = chartRef.current;
+        if (!series || !chart) return;
+        let cancelled = false;
+        const paint = () => {
+            if (cancelled) return;
+            try {
+                largeOrderMarkersRef.current?.setMarkers([]);
+                if (!largeOrderMarkersRef.current) {
+                    largeOrderMarkersRef.current = createSeriesMarkers(series, []);
+                }
+                if (!largeOrderSettings.showOnChart) return;
+                const bars = barsRef.current;
+                if (bars.length === 0) return;
+                const markers = largeOrderEvents
+                    .filter((event) => event.code === contract.code)
+                    .map((event) => {
+                        const eventSec = wallClockToUtc(`${event.date}T${event.time}`);
+                        let time = bars[0]!.time;
+                        for (const bar of bars) {
+                            if (bar.time <= eventSec) time = bar.time;
+                            else break;
+                        }
+                        return {
+                            time: time as UTCTimestamp,
+                            position: event.side === 'bid' ? 'belowBar' as const : 'aboveBar' as const,
+                            color: event.side === 'bid' ? colors.up : colors.down,
+                            shape: event.side === 'bid' ? 'arrowUp' as const : 'arrowDown' as const,
+                            text: `${event.side === 'bid' ? '委買' : '委賣'} ${event.quantity}口 ${event.time}`,
+                        };
+                    });
+                largeOrderMarkersRef.current?.setMarkers(markers);
+            } catch {
+                // Marker support must never make the trading chart unavailable.
+            }
+        };
+        const raf = requestAnimationFrame(paint);
+        return () => {
+            cancelled = true;
+            cancelAnimationFrame(raf);
+        };
+    }, [largeOrderEvents, largeOrderSettings.showOnChart, contract.code, colors.down, colors.up, dataVersion]);
 
     // indicator instances → chart series: overlays on the main pane,
     // every oscillator instance in its own sub-pane (lightweight-charts v5)
@@ -791,14 +883,44 @@ export function CandleChart({
             return;
         }
 
-        const toLineData = (pts: IndicatorPoint[]) =>
-            pts.map((p) =>
+        const toLineData = (pts: IndicatorPoint[], extendRight = false) => {
+            const data = pts.map((p) =>
                 p.value === undefined
                     ? { time: p.time as UTCTimestamp }
                     : { time: p.time as UTCTimestamp, value: p.value },
             ) as SeriesDataItemTypeMap['Line'][];
+            // Key levels should remain visible through the chart's right edge.
+            if (extendRight && pts.length > 0 && pts.at(-1)?.value !== undefined && bars.length > 1) {
+                const lastBar = bars[bars.length - 1]!;
+                const previousBar = bars[bars.length - 2]!;
+                const step = Math.max(60, lastBar.time - previousBar.time);
+                data.push({
+                    // Use one common endpoint for every key-level segment:
+                    // latest candle + 10 candle widths.
+                    time: (lastBar.time + step * 10) as UTCTimestamp,
+                    value: pts.at(-1)!.value!,
+                });
+            }
+            return data;
+        };
+
+        const splitKeyLevelSegments = (pts: IndicatorPoint[]) => {
+            const segments: IndicatorPoint[][] = [];
+            let current: IndicatorPoint[] = [];
+            for (const point of pts) {
+                if (point.value === undefined) {
+                    if (current.length > 0) segments.push(current);
+                    current = [];
+                } else {
+                    current.push(point);
+                }
+            }
+            if (current.length > 0) segments.push(current);
+            return segments;
+        };
 
         let paneIdx = 1;
+        const nextDivergenceLabels: typeof divergenceLabels = [];
         legendMetaRef.current = new Map();
         for (const inst of instances) {
             const def = DEF_BY_TYPE.get(inst.type);
@@ -855,6 +977,42 @@ export function CandleChart({
                 const st = outputStyle(inst, def, o.key);
                 if (!st.visible) continue;
                 const color = colorWithOpacity(st.color, st.opacity);
+
+                // Key-level history is intentionally rendered as multiple
+                // independent series. A single LineSeries can still join
+                // historical level segments even when whitespace points are
+                // inserted, producing the unwanted rectangle/diagonal shape.
+                if (inst.type === 'private-key-levels') {
+                    const segments = splitKeyLevelSegments(pts);
+                    segments.forEach((segment, segmentIndex) => {
+                        const s = chart.addSeries(
+                            LineSeries,
+                            {
+                                color,
+                                lineWidth: st.width,
+                                lineStyle: o.kind === 'dashed' ? LineStyle.Dashed : LineStyle.Solid,
+                                lineType: LineType.Simple,
+                                crosshairMarkerVisible: false,
+                                ...labelOpts,
+                                ...priceFormatOpt,
+                            },
+                            pane,
+                        );
+                        s.setData(toLineData(segment, true));
+                        indSeriesRef.current.push(s as ISeriesApi<'Line' | 'Histogram'>);
+                        firstSeries ??= s as ISeriesApi<'Line' | 'Histogram'>;
+                        if (segmentIndex === segments.length - 1) {
+                            metas.push({
+                                label: o.label,
+                                color: st.color,
+                                series: s as ISeriesApi<'Line' | 'Histogram'>,
+                                last: segment.at(-1)?.value,
+                                precision: inst.precision,
+                            });
+                        }
+                    });
+                    continue;
+                }
                 let s: ISeriesApi<'Line' | 'Histogram' | 'Area'>;
                 if (st.plot === 'histogram') {
                     s = chart.addSeries(
@@ -892,7 +1050,7 @@ export function CandleChart({
                         },
                         pane,
                     );
-                    s.setData(toLineData(pts));
+                    s.setData(toLineData(pts, inst.type === 'private-key-levels'));
                 } else {
                     s = chart.addSeries(
                         LineSeries,
@@ -920,8 +1078,65 @@ export function CandleChart({
                         },
                         pane,
                     );
-                    s.setData(toLineData(pts));
+                s.setData(toLineData(pts, inst.type === 'private-key-levels'));
+                if (
+                    inst.type === 'private-kdj-divergence' &&
+                    ['regularBull', 'regularBear', 'hiddenBull', 'hiddenBear'].includes(o.key)
+                ) {
+                    const labelSize = inst.divergenceLabelSize ?? 1;
+                    const arrowSize = inst.divergenceArrowSize ?? 2;
+                    const markerText =
+                        labelSize === 0
+                            ? ''
+                            : o.key === 'regularBull'
+                              ? '常底'
+                              : o.key === 'regularBear'
+                                ? '常頂'
+                                : o.key === 'hiddenBull'
+                                  ? '隱底'
+                                  : '隱頂';
+                    try {
+                        createSeriesMarkers(s as ISeriesApi<'Line'>, pts
+                            .filter((p) => p.value !== undefined)
+                            .map((p) => ({
+                                time: p.time as UTCTimestamp,
+                                position:
+                                    o.key.endsWith('Bull')
+                                        ? ('belowBar' as const)
+                                        : ('aboveBar' as const),
+                                shape:
+                                    o.key.endsWith('Bull')
+                                        ? ('arrowUp' as const)
+                                        : ('arrowDown' as const),
+                                color,
+                                size: arrowSize,
+                                text: '',
+                            })));
+                        if (markerText) {
+                            const paneElement = chart.panes()[pane]?.getHTMLElement();
+                            const hostElement = hostRef.current;
+                            if (paneElement && hostElement) {
+                                const paneTop = paneElement.getBoundingClientRect().top - hostElement.getBoundingClientRect().top;
+                                for (const point of pts) {
+                                    if (point.value === undefined) continue;
+                                    const x = chart.timeScale().timeToCoordinate(point.time as UTCTimestamp);
+                                    const y = s.priceToCoordinate(point.value);
+                                    if (x === null || y === null) continue;
+                                    nextDivergenceLabels.push({
+                                        left: x,
+                                        top: paneTop + y,
+                                        text: markerText,
+                                        color,
+                                        fontSize: labelSize === 1 ? 9 : labelSize === 2 ? 11 : 13,
+                                    });
+                                }
+                            }
+                        }
+                    } catch {
+                        // Marker rendering is optional; the indicator line remains usable.
+                    }
                 }
+            }
                 indSeriesRef.current.push(
                     s as ISeriesApi<'Line' | 'Histogram'>,
                 );
@@ -953,6 +1168,7 @@ export function CandleChart({
                 }
             }
         }
+        setDivergenceLabels(nextDivergenceLabels);
         // restore the remembered proportions（stretch factor 精確還原，
         // 含主圖；px 只當第一次出現的 pane 的預設值用）
         try {
@@ -1570,6 +1786,26 @@ export function CandleChart({
                 )}
             </div>
             <div ref={hostRef} className={styles.chartHost}>
+                {divergenceLabels.map((label, index) => (
+                    <span
+                        key={`divergence-label-${index}-${label.left}-${label.top}`}
+                        style={{
+                            position: 'absolute',
+                            left: label.left,
+                            top: label.top,
+                            transform: 'translate(-50%, -50%)',
+                            color: label.color,
+                            fontSize: `${label.fontSize}px`,
+                            fontWeight: 700,
+                            lineHeight: 1,
+                            pointerEvents: 'none',
+                            textShadow: '0 1px 2px #000, 0 -1px 2px #000',
+                            zIndex: 5,
+                        }}
+                    >
+                        {label.text}
+                    </span>
+                ))}
                 {loading && (
                     <div className={styles.emptyMsg}>
                         <Orb size={12} style={{ marginRight: 6, verticalAlign: '-2px' }} />

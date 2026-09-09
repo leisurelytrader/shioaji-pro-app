@@ -575,3 +575,132 @@ export function bias(bars: Candle[], period = 20): IndicatorPoint[] {
     }
     return out;
 }
+
+// Pine-compatible recursive weighted SMA used by the private KDJ profile.
+export function bcwsma(
+    values: IndicatorPoint[],
+    length: number,
+    momentum = 1,
+): IndicatorPoint[] {
+    const out: IndicatorPoint[] = [];
+    let previous: number | undefined;
+    for (const point of values) {
+        if (point.value === undefined || !Number.isFinite(point.value)) continue;
+        const prior = previous ?? point.value;
+        const current =
+            (momentum * point.value + (length - momentum) * prior) / length;
+        previous = current;
+        out.push({ time: point.time, value: current });
+    }
+    return out;
+}
+
+export function kdjPrivate(
+    bars: Candle[],
+    period: number,
+    smoothing: number,
+): {
+    k: IndicatorPoint[];
+    d: IndicatorPoint[];
+    j: IndicatorPoint[];
+    regularBull: IndicatorPoint[];
+    regularBear: IndicatorPoint[];
+    hiddenBull: IndicatorPoint[];
+    hiddenBear: IndicatorPoint[];
+} {
+    const rsv: IndicatorPoint[] = [];
+    for (let i = period - 1; i < bars.length; i += 1) {
+        const window = bars.slice(i - period + 1, i + 1);
+        const high = Math.max(...window.map((b) => b.high));
+        const low = Math.min(...window.map((b) => b.low));
+        const range = high - low;
+        rsv.push({
+            time: bars[i]!.time,
+            value: range === 0 ? undefined : (100 * (bars[i]!.close - low)) / range,
+        });
+    }
+    const k = bcwsma(rsv, smoothing, 1);
+    const d = bcwsma(k, smoothing, 1);
+    const dByTime = new Map(d.map((p) => [p.time, p.value]));
+    const j = k.map((p) => ({
+        time: p.time,
+        value:
+            p.value !== undefined && dByTime.get(p.time) !== undefined
+                ? 3 * p.value - dByTime.get(p.time)!
+                : undefined,
+    }));
+    const regularBull: IndicatorPoint[] = [];
+    const regularBear: IndicatorPoint[] = [];
+    const hiddenBull: IndicatorPoint[] = [];
+    const hiddenBear: IndicatorPoint[] = [];
+    const kByTime = new Map(k.map((p) => [p.time, p.value]));
+    for (let i = 1; i < bars.length; i += 1) {
+        const current = kByTime.get(bars[i]!.time);
+        const previous = kByTime.get(bars[i - 1]!.time);
+        if (current === undefined || previous === undefined) continue;
+        const minK = Math.min(current, previous);
+        const maxK = Math.max(current, previous);
+        if (bars[i]!.low < bars[i - 1]!.low && current > previous && minK < 30)
+            regularBull.push({ time: bars[i]!.time, value: current - 5 });
+        if (bars[i]!.high > bars[i - 1]!.high && current < previous && maxK > 70)
+            regularBear.push({ time: bars[i]!.time, value: current + 5 });
+        if (bars[i]!.low > bars[i - 1]!.low && current < previous && minK < 30)
+            hiddenBull.push({ time: bars[i]!.time, value: current - 5 });
+        if (bars[i]!.high < bars[i - 1]!.high && current > previous && maxK > 70)
+            hiddenBear.push({ time: bars[i]!.time, value: current + 5 });
+    }
+    return { k, d, j, regularBull, regularBear, hiddenBull, hiddenBear };
+}
+
+export function keyLevelsPrivate(
+    bars: Candle[],
+    groups: Array<{ hour: number; minute: number; source: 'open' | 'high' | 'low' | 'close' }>,
+): IndicatorPoint[][] {
+    // K 棒是 close-labelled：例如 5 分 K 的 08:45 開盤區間，
+    // 時間標籤通常是 08:50；15 分 K 則可能標成 09:00。用相鄰
+    // K 棒間距推算涵蓋區間，才能讓同一個設定時間在不同週期定位
+    // 到同一根「開盤 K 棒」。
+    const intervalSec = (() => {
+        const gaps = bars
+            .slice(1)
+            .map((bar, index) => bar.time - bars[index]!.time)
+            .filter((gap) => gap > 0 && gap <= 86_400);
+        return gaps.length > 0 ? Math.min(...gaps) : 60;
+    })();
+
+    return groups.map((group) => {
+        let current: number | undefined;
+        let currentDay = '';
+        const output: IndicatorPoint[] = [];
+        for (const bar of bars) {
+            // Candle timestamps encode Taiwan wall-clock values as UTC so
+            // charts remain independent of the user's Windows timezone.
+            const wallClock = new Date(bar.time * 1000);
+            const hour = wallClock.getUTCHours();
+            const minute = wallClock.getUTCMinutes();
+            const configuredTime = Date.UTC(
+                wallClock.getUTCFullYear(),
+                wallClock.getUTCMonth(),
+                wallClock.getUTCDate(),
+                group.hour,
+                group.minute,
+            ) / 1000;
+            const containsConfiguredTime =
+                configuredTime >= bar.time - intervalSec && configuredTime <= bar.time;
+            const dayKey = `${wallClock.getUTCFullYear()}-${wallClock.getUTCMonth()}-${wallClock.getUTCDate()}`;
+            if (containsConfiguredTime && currentDay !== dayKey) {
+                // Close the previous segment before starting a new horizontal
+                // line. A lightweight-charts line series otherwise connects
+                // the old value to the new value with an unwanted diagonal.
+                if (current !== undefined && output.length > 0) {
+                    const last = output[output.length - 1]!;
+                    output[output.length - 1] = { time: last.time };
+                }
+                current = bar[group.source];
+                currentDay = dayKey;
+            }
+            if (current !== undefined) output.push({ time: bar.time, value: current });
+        }
+        return output;
+    });
+}

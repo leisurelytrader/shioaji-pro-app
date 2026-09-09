@@ -123,3 +123,21 @@ export const forceBid = style({
     background: vars.color.up,
     transition: 'width 0.25s ease',
 });
+
+export const largeOrderSettings = style({
+    display: 'flex',
+    flexDirection: 'column',
+    gap: vars.space.xs,
+    padding: vars.space.sm,
+    border: `1px solid ${vars.color.border}`,
+    borderRadius: vars.radius.sm,
+    background: vars.color.panel,
+    fontSize: '0.72rem',
+});
+
+export const settingRow = style({ display: 'flex', gap: vars.space.sm, flexWrap: 'wrap' });
+export const levelsRow = style({ display: 'flex', gap: vars.space.xs, alignItems: 'center', flexWrap: 'wrap' });
+export const historyRow = style({ fontFamily: vars.font.mono, color: vars.color.mutedForeground });
+export const largeOrderRow = style({ background: vars.color.muted });
+
+export const historyActions = style({ display: 'flex', gap: vars.space.xs, flexWrap: 'wrap' });

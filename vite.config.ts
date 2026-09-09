@@ -98,6 +98,7 @@ export default defineConfig(({ mode }) => {
                 ...configDefaults.exclude,
                 'src-tauri/**',
                 'plugins/**/test/*.test.mjs',
+                'e2e/**',
             ],
         },
         resolve: {

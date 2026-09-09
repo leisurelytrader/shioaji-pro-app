@@ -1,0 +1,7 @@
+{
+  "main": "dist/collector.cjs",
+  "output": "dist/collector.blob",
+  "disableExperimentalSEAWarning": true,
+  "useSnapshot": false,
+  "useCodeCache": true
+}

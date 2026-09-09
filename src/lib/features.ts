@@ -12,6 +12,10 @@ import { useSyncExternalStore } from 'react';
 import { closedModules } from '@modules';
 import { fetchAccounts } from './shioaji';
 
+// Public facade: native UI code reads only the typed manifest facade, while
+// open builds continue to resolve it from src/modules-stub.
+export { closedModules };
+
 export type Tier = 'free' | 'vip';
 
 // the closed manifest shape (implemented in the private repo; stubbed in
@@ -22,6 +26,25 @@ export interface ClosedModules {
     // provider). Tri-state: true/false = service decision; undefined =
     // service has no opinion → fall back to the tier rule below.
     checkFeature?: (key: string) => boolean | undefined;
+    chartOverlay?: {
+        defaultIndicators: Array<{
+            type: string;
+            params?: Record<string, number>;
+        }>;
+    };
+    largeOrder?: Partial<{
+        enabled: boolean;
+        bidThreshold: number;
+        askThreshold: number;
+        bidLevels: Array<1 | 2 | 3 | 4 | 5>;
+        askLevels: Array<1 | 2 | 3 | 4 | 5>;
+        trigger: 'cross-above' | 'always-above';
+        cooldownSeconds: number;
+        showOnChart: boolean;
+        sound: boolean;
+        popup: boolean;
+        desktop: boolean;
+    }>;
     agent?: {
         Panel: React.ComponentType<{
             initialPrompt?: string;

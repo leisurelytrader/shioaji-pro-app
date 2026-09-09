@@ -1,0 +1,27 @@
+import { style } from '@vanilla-extract/css';
+import { vars } from '../theme.css';
+
+export const backdrop = style({ position: 'fixed', inset: 0, zIndex: 90, background: 'rgba(0,0,0,.36)' });
+export const drawer = style({ position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 91, width: 'min(430px, 94vw)', display: 'flex', flexDirection: 'column', background: vars.color.panel, borderLeft: `1px solid ${vars.color.border}`, boxShadow: '-14px 0 36px rgba(0,0,0,.35)', fontSize: '0.78rem' });
+export const header = style({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: vars.space.md, borderBottom: `1px solid ${vars.color.border}`, fontFamily: vars.font.display });
+export const headerActions = style({ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap', justifyContent: 'flex-end' });
+export const headerTitle = style({ display: 'flex', flexDirection: 'column' });
+export const headerSub = style({ color: vars.color.mutedForeground, fontSize: '0.68rem', marginTop: '3px' });
+export const iconButton = style({ border: 0, background: 'transparent', color: vars.color.mutedForeground, cursor: 'pointer', padding: '4px' });
+export const tabs = style({ display: 'flex', borderBottom: `1px solid ${vars.color.border}` });
+export const tab = style({ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px', padding: '10px 6px', border: 0, borderBottom: '2px solid transparent', background: 'transparent', color: vars.color.mutedForeground, cursor: 'pointer' });
+export const activeTab = style([tab, { color: vars.color.foreground, borderBottomColor: vars.color.accent }]);
+export const body = style({ flex: 1, overflowY: 'auto', padding: vars.space.md });
+export const configMessage = style({ padding: '6px 12px', color: vars.color.accent, background: vars.color.muted, fontSize: '0.7rem' });
+export const section = style({ display: 'flex', flexDirection: 'column', gap: vars.space.sm });
+export const sectionTitle = style({ margin: 0, fontSize: '0.85rem' });
+export const twoColumns = style({ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: vars.space.sm });
+export const levels = style({ display: 'flex', alignItems: 'center', gap: vars.space.sm, flexWrap: 'wrap', padding: '7px 0', borderTop: `1px solid ${vars.color.border}`, borderBottom: `1px solid ${vars.color.border}` });
+export const primaryButton = style({ background: vars.color.accent, color: '#fff', border: 0, borderRadius: vars.radius.sm, padding: '8px 10px', cursor: 'pointer', fontWeight: 600, ':disabled': { opacity: 0.55, cursor: 'wait' } });
+export const resultHeader = style({ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: vars.space.md, paddingBottom: '5px', borderBottom: `1px solid ${vars.color.border}`, color: vars.color.mutedForeground });
+export const eventRow = style({ display: 'grid', gridTemplateColumns: '3.2rem 3rem 4.5rem 1fr', gap: '6px', alignItems: 'center', padding: '7px 4px', borderBottom: `1px solid ${vars.color.border}`, fontFamily: vars.font.mono, fontSize: '0.7rem' });
+export const bid = style({ color: vars.color.up });
+export const ask = style({ color: vars.color.down });
+export const muted = style({ color: vars.color.mutedForeground, lineHeight: 1.5, margin: 0 });
+export const empty = style([muted, { textAlign: 'center', padding: vars.space.lg }]);
+export const error = style({ color: vars.color.down, margin: 0, lineHeight: 1.5 });

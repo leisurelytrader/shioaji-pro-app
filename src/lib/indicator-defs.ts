@@ -19,6 +19,8 @@ import {
     rsi,
     sar,
     sma,
+    kdjPrivate,
+    keyLevelsPrivate,
     stoch,
     stochRsi,
     supertrend,
@@ -397,6 +399,93 @@ export const INDICATOR_DEFS: IndicatorDef[] = [
         levels: [0],
         compute: (b, p) => ({ line: bias(b, p.period!) }),
     },
+    {
+        type: 'private-seven-sma',
+        label: '7SMA 專屬均線',
+        short: '7SMA',
+        desc: '5/10/21/60/120/200/240 多週期均線組合',
+        aliases: ['7sma', 'private', '均線', '扣抵'],
+        category: 'overlay',
+        params: [
+            { key: 'ma1', label: 'MA1', def: 5, min: 1, max: 500 },
+            { key: 'ma2', label: 'MA2', def: 10, min: 1, max: 500 },
+            { key: 'ma3', label: 'MA3', def: 21, min: 1, max: 500 },
+            { key: 'ma4', label: 'MA4', def: 60, min: 1, max: 500 },
+            { key: 'ma5', label: 'MA5', def: 120, min: 1, max: 500 },
+            { key: 'ma6', label: 'MA6', def: 200, min: 1, max: 500 },
+            { key: 'ma7', label: 'MA7', def: 240, min: 1, max: 500 },
+        ],
+        outputs: [
+            { key: 'ma1', label: 'MA1', kind: 'line', color: '#f5f7fa' },
+            { key: 'ma2', label: 'MA2', kind: 'line', color: '#00892e' },
+            { key: 'ma3', label: 'MA3', kind: 'line', color: '#ff35c9', width: 2 },
+            { key: 'ma4', label: 'MA4', kind: 'line', color: '#3d8bff', width: 2 },
+            { key: 'ma5', label: 'MA5', kind: 'line', color: '#8b94a7' },
+            { key: 'ma6', label: 'MA6', kind: 'line', color: '#ff4d6a' },
+            { key: 'ma7', label: 'MA7', kind: 'line', color: '#f5d742' },
+        ],
+        compute: (b, p) => ({
+            ma1: sma(b, p.ma1!), ma2: sma(b, p.ma2!), ma3: sma(b, p.ma3!),
+            ma4: sma(b, p.ma4!), ma5: sma(b, p.ma5!), ma6: sma(b, p.ma6!),
+            ma7: sma(b, p.ma7!),
+        }),
+    },
+    {
+        type: 'private-kdj-divergence',
+        label: 'KDJ＋背離（專屬）',
+        short: 'KDJ-DIV',
+        desc: 'K/D/J 與常規、隱藏背離訊號',
+        aliases: ['kdj', 'divergence', '背離', '專屬'],
+        category: 'pane',
+        params: [
+            { key: 'period', label: 'K 週期', def: 9, min: 1, max: 100 },
+            { key: 'smooth', label: '平滑', def: 3, min: 1, max: 50 },
+        ],
+        outputs: [
+            { key: 'k', label: 'K', kind: 'line', color: '#f5f7fa' },
+            { key: 'd', label: 'D', kind: 'line', color: '#21bff3' },
+            { key: 'j', label: 'J', kind: 'line', color: '#f5d742' },
+            { key: 'regularBull', label: '常底', kind: 'points', color: '#1fd286' },
+            { key: 'regularBear', label: '常頂', kind: 'points', color: '#ff4d6a' },
+            { key: 'hiddenBull', label: '隱底', kind: 'points', color: '#f5f7fa' },
+            { key: 'hiddenBear', label: '隱頂', kind: 'points', color: '#f5f7fa' },
+        ],
+        levels: [20, 80],
+        compute: (b, p) => kdjPrivate(b, p.period!, p.smooth!),
+    },
+    {
+        type: 'private-key-levels',
+        label: '關鍵價（時間線）',
+        short: 'KEY',
+        desc: '依台灣時間建立日盤、夜盤開收盤歷史水平線',
+        aliases: ['key level', '關鍵價', '開盤', '收盤', '夜盤'],
+        category: 'overlay',
+        params: [
+            { key: 'h1', label: '時間1時', def: 8, min: 0, max: 23 },
+            { key: 'm1', label: '時間1分', def: 45, min: 0, max: 59 },
+            { key: 'h2', label: '時間2時', def: 13, min: 0, max: 23 },
+            { key: 'm2', label: '時間2分', def: 45, min: 0, max: 59 },
+            { key: 'h3', label: '時間3時', def: 15, min: 0, max: 23 },
+            { key: 'm3', label: '時間3分', def: 0, min: 0, max: 59 },
+            { key: 'h4', label: '時間4時', def: 5, min: 0, max: 23 },
+            { key: 'm4', label: '時間4分', def: 0, min: 0, max: 59 },
+        ],
+        outputs: [
+            { key: 'level1', label: '08:45', kind: 'line', color: '#ff4d6a', width: 2 },
+            { key: 'level2', label: '13:45', kind: 'line', color: '#3d8bff', width: 2 },
+            { key: 'level3', label: '15:00', kind: 'line', color: '#ff8a3d', width: 2 },
+            { key: 'level4', label: '05:00', kind: 'line', color: '#b06fff', width: 2 },
+        ],
+        compute: (b, p) => {
+            const levels = keyLevelsPrivate(b, [
+                { hour: p.h1!, minute: p.m1!, source: 'open' },
+                { hour: p.h2!, minute: p.m2!, source: 'close' },
+                { hour: p.h3!, minute: p.m3!, source: 'open' },
+                { hour: p.h4!, minute: p.m4!, source: 'close' },
+            ]);
+            return { level1: levels[0]!, level2: levels[1]!, level3: levels[2]!, level4: levels[3]! };
+        },
+    },
 ];
 
 export const DEF_BY_TYPE = new Map(INDICATOR_DEFS.map((d) => [d.type, d]));
@@ -428,6 +517,9 @@ export interface IndicatorInstance {
     precision?: number; // 數值小數位數；undefined = 自動
     showLabels?: boolean; // 價格軸最新值標籤（預設 false）
     showValues?: boolean; // legend 顯示數值（預設 true）
+    // private KDJ divergence marker presentation
+    divergenceLabelSize?: 0 | 1 | 2 | 3;
+    divergenceArrowSize?: 1 | 2 | 3 | 4;
 }
 
 // merged effective style for one output
@@ -489,6 +581,12 @@ export function newInstance(type: string): IndicatorInstance {
         ...(saved?.showValues !== undefined
             ? { showValues: saved.showValues }
             : {}),
+        ...(saved?.divergenceLabelSize !== undefined
+            ? { divergenceLabelSize: saved.divergenceLabelSize }
+            : {}),
+        ...(saved?.divergenceArrowSize !== undefined
+            ? { divergenceArrowSize: saved.divergenceArrowSize }
+            : {}),
     };
 }
 
@@ -507,6 +605,8 @@ export interface TypeDefaults {
     precision?: number;
     showLabels?: boolean;
     showValues?: boolean;
+    divergenceLabelSize?: 0 | 1 | 2 | 3;
+    divergenceArrowSize?: 1 | 2 | 3 | 4;
 }
 
 const DEFAULTS_KEY = 'sj-pro-ind-defaults-v1';
@@ -532,6 +632,12 @@ export function saveTypeDefault(inst: IndicatorInstance) {
             : {}),
         ...(inst.showValues !== undefined
             ? { showValues: inst.showValues }
+            : {}),
+        ...(inst.divergenceLabelSize !== undefined
+            ? { divergenceLabelSize: inst.divergenceLabelSize }
+            : {}),
+        ...(inst.divergenceArrowSize !== undefined
+            ? { divergenceArrowSize: inst.divergenceArrowSize }
             : {}),
     };
     try {

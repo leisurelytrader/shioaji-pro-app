@@ -5,6 +5,7 @@
 import { getApiBase, getStreamBase } from './runtime';
 import { apiPost } from './api';
 import type { SseBidAsk, SseIndexQuote, SseTick } from './types/market';
+import { ingestBidAskForLargeOrders } from './large-order';
 import {
     normalizeOrderEvent,
     type OrderEventReport,
@@ -168,6 +169,7 @@ function handleBidAsk(raw: string) {
 }
 
 function ingestBidAsk(bidask: SseBidAsk) {
+    ingestBidAskForLargeOrders(bidask);
     const prev = quotes.get(bidask.code);
     quotes.set(bidask.code, {
         tick: prev?.tick,

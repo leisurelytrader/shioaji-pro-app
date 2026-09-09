@@ -34,6 +34,8 @@ import { ComboTicket } from './components/combo-ticket';
 import { DebugPanel } from './components/debug-panel';
 import { GridTicket } from './components/grid-ticket';
 import { NoticeCenter } from './components/notice-center';
+import { LargeOrderAlerts } from './components/large-order-alerts';
+import { CollectorSupervisorAlerts } from './components/collector-supervisor-alerts';
 import { FeatureGate } from './components/feature-gate';
 import { OptPayoff } from './components/opt-payoff';
 import { PanelErrorBoundary } from './components/panel-error-boundary';
@@ -1290,6 +1292,8 @@ export default function App() {
                     .map((i) => i.contract.code)}
             />
             <EventToasts onEvent={refreshTrading} />
+            <LargeOrderAlerts />
+            <CollectorSupervisorAlerts />
             <OrderConfirmHost />
             <CommandPalette
                 open={paletteOpen}
