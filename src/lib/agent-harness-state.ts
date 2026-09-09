@@ -1,9 +1,10 @@
 const STORAGE_KEY = 'sj-agent-harness-enabled';
 const CHANGE_EVENT = 'sj-agent-harness-enabled-changed';
 
-let enabledCache =
-    typeof localStorage !== 'undefined' &&
-    localStorage.getItem(STORAGE_KEY) === 'true';
+// The public desktop build attaches to the official external Shioaji server.
+// It does not bundle the native Agent Harness commands, so an old localStorage
+// value must never route human orders through `agent_harness_post`.
+let enabledCache = false;
 
 export function resolveAgentHarnessSetting(
     stored: boolean | null | undefined,
