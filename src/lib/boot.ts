@@ -162,8 +162,20 @@ async function run() {
                         void subscribeProductionTradeEvents();
                         return;
                     } catch {
-                        // No external server yet; continue to the optional
-                        // sidecar attempt below.
+                        // A previous run may have persisted the legacy 8080
+                        // port. Probe the official Shioaji Pro listener before
+                        // falling through to the optional proprietary
+                        // sidecar, which is not shipped in this build.
+                        setApiPort(21322);
+                        setApiScheme('http');
+                        try {
+                            await fetchHealth();
+                            void subscribeProductionTradeEvents();
+                            return;
+                        } catch {
+                            // No external server yet; continue to the
+                            // optional sidecar attempt below.
+                        }
                     }
                     // not running, unhealthy, or wrong mode — serverStart
                     // stops a broken daemon and starts fresh
