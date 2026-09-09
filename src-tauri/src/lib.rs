@@ -67,7 +67,7 @@ fn start_collector(app: &tauri::AppHandle) {
             let app_handle = app.clone();
             let stable_handle = app.clone();
             tauri::async_runtime::spawn(async move {
-                tauri::async_runtime::sleep(Duration::from_secs(30)).await;
+                std::thread::sleep(Duration::from_secs(30));
                 let state = stable_handle.state::<CollectorState>();
                 if !state.stopping.load(Ordering::Relaxed)
                     && state.child.lock().expect("collector state poisoned").is_some()
@@ -102,7 +102,7 @@ fn start_collector(app: &tauri::AppHandle) {
 
                             if attempt <= MAX_RESTARTS {
                                 emit_status(&app_handle, "restarting", format!("{} 秒後自動重啟（第 {attempt}/{MAX_RESTARTS} 次）", 1), attempt);
-                                tauri::async_runtime::sleep(Duration::from_secs(1)).await;
+                                std::thread::sleep(Duration::from_secs(1));
                                 if !state.stopping.load(Ordering::Relaxed) {
                                     start_collector(&app_handle);
                                 }
