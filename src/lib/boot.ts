@@ -93,6 +93,21 @@ async function run() {
     if (isTauri && !isPopout) {
         try {
             const settings = await loadDesktopSettings();
+            // Public Windows builds attach to the official Shioaji Pro that
+            // the user already logged into. Probe its fixed listener before
+            // consulting autoStart/serverStatus; otherwise autoStart can
+            // incorrectly call serverStart and look for the proprietary
+            // binaries/shioaji sidecar that is intentionally not bundled.
+            setApiPort(21322);
+            setApiScheme('http');
+            try {
+                await fetchHealth();
+                void subscribeProductionTradeEvents();
+                return;
+            } catch {
+                // The official server is not ready yet; continue with the
+                // existing recovery/watchdog flow below.
+            }
             if (settings.autoStart && settings.apiKey && settings.secretKey) {
                 const status = await serverStatus();
                 // 本機 HTTPS：the desired listener scheme also has to match
