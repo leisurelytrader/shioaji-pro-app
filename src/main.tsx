@@ -17,7 +17,11 @@ import { startTriggerEngine } from './lib/trigger-engine';
 initTheme();
 startAnalytics();
 startTriggerEngine();
-bootstrap();
+try {
+    bootstrap();
+} catch (error) {
+    console.error('[startup] bootstrap failed; continuing to render UI', error);
+}
 
 // A fresh desktop install has no API key saved yet — the dashboard would
 // otherwise render fully but every panel silently fails against a server
@@ -31,9 +35,9 @@ function AppGate() {
     );
     useEffect(() => {
         if (!isTauri) return;
-        void loadDesktopSettings().then((s) =>
-            setNeedsSetup(!s.apiKey || !s.secretKey),
-        );
+        void loadDesktopSettings()
+            .then((s) => setNeedsSetup(!s.apiKey || !s.secretKey))
+            .catch(() => setNeedsSetup(true));
     }, []);
     if (needsSetup === null) return null; // instant local read, no flash
     return needsSetup ? <OnboardingSetup /> : <App />;
