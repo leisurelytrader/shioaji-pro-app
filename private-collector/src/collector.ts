@@ -20,7 +20,11 @@ export class MarketCollector {
     private retryMs: number;
     constructor(private readonly config: CollectorConfig, private readonly db: MarketDb) { this.retryMs = config.reconnectMinMs; }
     async start() {
-        await this.subscribeAll();
+        try {
+            await this.subscribeAll();
+        } catch (error) {
+            console.error(`[collector] initial Shioaji subscription failed; will retry: ${error instanceof Error ? error.message : String(error)}`);
+        }
         this.flushTimer = setInterval(() => void this.flush(), this.config.flushIntervalMs);
         void this.runSseLoop();
     }

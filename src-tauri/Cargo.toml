@@ -19,6 +19,7 @@ tauri = { version = "2.8", features = [] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-dialog = "2.3"
 tauri-plugin-store = "2.2"
+tauri-plugin-updater = "2.10"
 
 [features]
 default = ["custom-protocol"]

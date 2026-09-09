@@ -49,6 +49,7 @@ fn start_collector(app: &tauri::AppHandle) {
             );
         }
         command
+            .env("SHIOAJI_BASE_URL", "http://127.0.0.1:21322")
             .env("COLLECTOR_HOST", "127.0.0.1")
             .env("COLLECTOR_PORT", "8787")
             .args(["--embedded"])
@@ -146,6 +147,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![collector_status])
         .setup(|app| {
             start_collector(&app.handle());

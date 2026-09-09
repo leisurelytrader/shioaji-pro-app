@@ -35,7 +35,7 @@ export function loadConfig(): CollectorConfig {
         contracts = JSON.parse(process.env.COLLECTOR_CONTRACTS_JSON) as ContractSubscription[];
     }
     return {
-        shioajiBaseUrl: env('SHIOAJI_BASE_URL', 'http://127.0.0.1:8000').replace(/\/$/, ''),
+        shioajiBaseUrl: env('SHIOAJI_BASE_URL', 'http://127.0.0.1:21322').replace(/\/$/, ''),
         databaseUrl: env('DATABASE_URL', './data/shioaji-market.sqlite'),
         host: env('COLLECTOR_HOST', '127.0.0.1'),
         port: Number(env('COLLECTOR_PORT', '8787')),
