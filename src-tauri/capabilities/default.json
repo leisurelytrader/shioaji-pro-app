@@ -16,6 +16,16 @@
         }
       ]
     },
+    {
+      "identifier": "shell:allow-spawn",
+      "allow": [
+        {
+          "name": "binaries/collector",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    },
     "dialog:default",
     "store:default"
   ]
