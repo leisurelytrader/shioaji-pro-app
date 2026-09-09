@@ -361,9 +361,17 @@ export function ServerManager({
     };
 
     const doStop = async () => {
+        if (isTauri) {
+            notify({
+                kind: 'info',
+                title: '官方伺服器不由本 App 停止',
+                body: '請在官方 Shioaji Pro 主程式中停止 server；本 App 僅維持 21322 連線。',
+            });
+            return;
+        }
         setBusy(true);
         try {
-            const res = await serverStop({ allowExternal: true });
+            const res = await serverStop();
             setLastOutput(res.output.slice(-600));
             notify({
                 kind: res.ok ? 'ok' : 'err',
@@ -377,9 +385,17 @@ export function ServerManager({
     };
 
     const doRestart = async (cfg: DesktopSettings = settings) => {
+        if (isTauri) {
+            notify({
+                kind: 'info',
+                title: '請在官方 App 重新啟動 server',
+                body: '自訂 App 不會停止或重啟官方 Shioaji Pro，請重新啟動官方主程式後再按重新整理。',
+            });
+            return;
+        }
         setBusy(true);
         try {
-            await serverStop({ allowExternal: true });
+            await serverStop();
             await new Promise((r) => setTimeout(r, 1200));
             await doStart(cfg);
         } finally {
@@ -392,6 +408,10 @@ export function ServerManager({
     const [httpsMsg, setHttpsMsg] = useState('');
 
     const enableHttps = async () => {
+        if (isTauri) {
+            setHttpsMsg('外部官方 Shioaji server 使用固定 HTTP 21322；本 App 不會替官方 server 切換 HTTPS。');
+            return;
+        }
         setHttpsBusy(true);
         setHttpsMsg('');
         try {
@@ -423,6 +443,10 @@ export function ServerManager({
     };
 
     const disableHttps = async () => {
+        if (isTauri) {
+            setHttpsMsg('外部官方 Shioaji server 使用固定 HTTP 21322；本 App 不會替官方 server 切換 HTTPS。');
+            return;
+        }
         setHttpsMsg('');
         const merged = { ...settings, httpsEnabled: false };
         persist({ httpsEnabled: false });

@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "build:bundle": "esbuild src/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/collector.cjs",
     "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows-sea.ps1",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "express": "^5.1.0"

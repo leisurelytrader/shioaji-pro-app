@@ -3,8 +3,6 @@ import { MarketDb, type StoredDepth, type StoredTick } from './db.js';
 import { isDepth, isTick, type BidAskEvent, type TickEvent } from './market.js';
 import { readSse } from './sse.js';
 
-const STREAM_EVENTS = ['tick_stk', 'tick_fop', 'bidask_stk', 'bidask_fop'];
-
 function matchesConfiguredContract(eventCode: string, contract: ContractSubscription) {
     if (eventCode === contract.code) return true;
     // Shioaji continuous futures (for example TXFR1) are subscribed by
@@ -20,11 +18,6 @@ export class MarketCollector {
     private retryMs: number;
     constructor(private readonly config: CollectorConfig, private readonly db: MarketDb) { this.retryMs = config.reconnectMinMs; }
     async start() {
-        try {
-            await this.subscribeAll();
-        } catch (error) {
-            console.error(`[collector] initial Shioaji subscription failed; will retry: ${error instanceof Error ? error.message : String(error)}`);
-        }
         this.flushTimer = setInterval(() => void this.flush(), this.config.flushIntervalMs);
         void this.runSseLoop();
     }
@@ -45,18 +38,18 @@ export class MarketCollector {
         while (!this.stopped) {
             this.controller = new AbortController();
             try {
-                for (const event of STREAM_EVENTS) {
-                    // Attach event names through one stream; filtering happens in onMessage.
-                    void event;
-                }
+                // Subscribe before opening SSE. If the official server is not
+                // logged in yet, keep retrying instead of opening an idle SSE
+                // connection that could remain open without any subscriptions.
+                await this.subscribeAll();
                 await readSse(`${this.config.shioajiBaseUrl}/api/v1/stream/data?region=TW`, this.controller.signal, (message) => this.onMessage(message.event, message.data));
                 if (!this.stopped) throw new Error('SSE stream ended');
+                this.retryMs = this.config.reconnectMinMs;
             } catch (error) {
                 if (this.stopped) break;
-                console.error(`[collector] stream disconnected: ${error instanceof Error ? error.message : String(error)}`);
+                console.error(`[collector] connection/subscription failed; retrying: ${error instanceof Error ? error.message : String(error)}`);
                 await new Promise((resolve) => setTimeout(resolve, this.retryMs));
                 this.retryMs = Math.min(this.retryMs * 2, this.config.reconnectMaxMs);
-                try { await this.subscribeAll(); } catch (subscribeError) { console.error(`[collector] resubscribe failed: ${String(subscribeError)}`); }
             } finally { this.controller = undefined; }
         }
     }
