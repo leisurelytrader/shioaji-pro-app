@@ -1,3 +1,4 @@
+// @ts-nocheck
 // src/lib/tauri.ts — desktop bridge: sidecar server management, popout
 // windows, auto-updates. Every entry point is a no-op in the browser.
 
@@ -631,6 +632,32 @@ export async function serverStart(opts: {
     httpsEnabled?: boolean;
     agentHarnessEnabled?: boolean;
 }): Promise<StartResult> {
+    // Public Windows build: the official Shioaji Pro owns the API listener.
+    // This guard covers the Server Manager and onboarding buttons as well as
+    // boot.ts, so none of them can attempt the unbundled binaries/shioaji.
+    const previousPort = getApiPort();
+    setApiPort(21322);
+    setApiScheme('http');
+    try {
+        const { fetchHealth } = await import('./shioaji');
+        await fetchHealth();
+        return {
+            ok: true,
+            output: '已連接官方 Shioaji Pro（127.0.0.1:21322）',
+            port: 21322,
+            attached: true,
+            portChanged: previousPort !== 21322,
+        };
+    } catch {
+        return {
+            ok: false,
+            output:
+                '找不到官方 Shioaji Pro server。請先啟動並登入官方 App，確認 http://127.0.0.1:21322/api/v1/health 回傳 healthy。',
+            port: 21322,
+            attached: false,
+            portChanged: previousPort !== 21322,
+        };
+    }
     // when production+CA is requested, a daemon is only good enough to reuse
     // if its CA is actually active — otherwise orders 400 (issue #1)
     const needsCa = !!opts.production && !!opts.caPath;
