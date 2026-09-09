@@ -376,7 +376,7 @@ export function detectAbsorption(
     const byPrice = new Map<string, NormalizedTick[]>();
     for (const tick of ticks) {
         const price = Math.round(tick.price / p.tickSize) * p.tickSize;
-        const key = `${tick.code}:${price}`;
+        const key = `${tick.code}:${bucketStart(tick.eventTime, p.barMs)}:${price}`;
         byPrice.set(key, [...(byPrice.get(key) ?? []), tick]);
     }
     return [...byPrice.entries()].flatMap(([key, priceTicks]) => {
@@ -387,8 +387,9 @@ export function detectAbsorption(
         const sellVolume = sell.reduce((s, t) => s + t.volume, 0);
         const rangeTicks = (Math.max(...priceTicks.map((t) => t.price)) - Math.min(...priceTicks.map((t) => t.price))) / p.tickSize;
         const result: AbsorptionSignal[] = [];
-        if (sellVolume >= p.minAbsorptionVolume && rangeTicks <= p.maxAbsorptionRangeTicks) result.push({ code: priceTicks[0]!.code, side: 'buy', price: Number(key.split(':')[1]), time: priceTicks[priceTicks.length - 1]!.eventTime, aggressiveVolume: sellVolume, tradeCount: sell.length, priceRangeTicks: rangeTicks, confidence: Math.min(1, 0.6 + sellVolume / (p.minAbsorptionVolume * 10)) });
-        if (buyVolume >= p.minAbsorptionVolume && rangeTicks <= p.maxAbsorptionRangeTicks) result.push({ code: priceTicks[0]!.code, side: 'sell', price: Number(key.split(':')[1]), time: priceTicks[priceTicks.length - 1]!.eventTime, aggressiveVolume: buyVolume, tradeCount: buy.length, priceRangeTicks: rangeTicks, confidence: Math.min(1, 0.6 + buyVolume / (p.minAbsorptionVolume * 10)) });
+        const price = Number(key.split(':')[2]);
+        if (sellVolume >= p.minAbsorptionVolume && rangeTicks <= p.maxAbsorptionRangeTicks) result.push({ code: priceTicks[0]!.code, side: 'buy', price, time: priceTicks[priceTicks.length - 1]!.eventTime, aggressiveVolume: sellVolume, tradeCount: sell.length, priceRangeTicks: rangeTicks, confidence: Math.min(1, 0.6 + sellVolume / (p.minAbsorptionVolume * 10)) });
+        if (buyVolume >= p.minAbsorptionVolume && rangeTicks <= p.maxAbsorptionRangeTicks) result.push({ code: priceTicks[0]!.code, side: 'sell', price, time: priceTicks[priceTicks.length - 1]!.eventTime, aggressiveVolume: buyVolume, tradeCount: buy.length, priceRangeTicks: rangeTicks, confidence: Math.min(1, 0.6 + buyVolume / (p.minAbsorptionVolume * 10)) });
         return result.filter((signal) => signal.confidence >= p.minConfidence);
     });
 }
