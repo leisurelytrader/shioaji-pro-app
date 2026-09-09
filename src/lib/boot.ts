@@ -236,6 +236,12 @@ async function run() {
         }
     }
 
+    // The public Windows build attaches to the already-running official
+    // Shioaji Pro server. Always prefer its documented listener here instead
+    // of a stale port persisted by an older installation.
+    setApiPort(21322);
+    setApiScheme('http');
+
     // bootstrap watchdog: reload once the server becomes reachable. Uses
     // the scheme-agnostic status probe (NOT fetchHealth, which is locked to
     // the persisted scheme) so it still finds the server after a 本機 HTTPS
@@ -246,8 +252,9 @@ async function run() {
             void subscribeProductionTradeEvents();
             return; // server was up at boot — components loaded normally
         }
-        // wrong-version server answering on the persisted port — fall
-        // through to the watchdog: adopt it only after it's replaced
+        // A healthy external Shioaji Pro server may have a different API
+        // version from this UI's bundled-server expectation; it is accepted
+        // by serverVersionOk() below.
     } catch {
         notify({
             kind: 'info',
@@ -297,18 +304,21 @@ async function serverVersionOk(): Promise<boolean> {
     if (!isTauri || EXPECTED_SERVER_VERSION === '') return true;
     try {
         const info = await fetchInfo();
-        if (!info.version || info.version === EXPECTED_SERVER_VERSION) {
-            return true;
+        // The external official server is intentionally allowed to advance
+        // independently of this UI. Health is the compatibility gate here;
+        // rejecting a healthy 1.7.x server because the UI was built against
+        // an older bundled version leaves the whole app stuck on "connecting".
+        if (info.version && info.version !== EXPECTED_SERVER_VERSION) {
+            if (!versionWarned) {
+                versionWarned = true;
+                notify({
+                    kind: 'info',
+                    title: '已連線至外部 Shioaji server',
+                    body: `API 版本 ${info.version} 與內建版本 ${EXPECTED_SERVER_VERSION} 不同，已採用健康的官方 server`,
+                });
+            }
         }
-        if (!versionWarned) {
-            versionWarned = true;
-            notify({
-                kind: 'err',
-                title: '伺服器版本不符，未採用',
-                body: `port 上的 server 是 ${info.version}，本版需要 ${EXPECTED_SERVER_VERSION}——請停掉它，或到「伺服器」面板重新啟動`,
-            });
-        }
-        return false;
+        return true;
     } catch {
         return false; // /info unreachable — transient; keep waiting
     }
