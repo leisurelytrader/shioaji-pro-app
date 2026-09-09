@@ -149,6 +149,20 @@ async function run() {
                     if (status.port) setApiPort(status.port);
                     if (status.scheme) setApiScheme(status.scheme);
                 } else {
+                    // The public Windows installer does not contain
+                    // Sinopac's proprietary shioaji.exe. Prefer an already
+                    // running external Shioaji Pro server before attempting
+                    // the optional bundled sidecar.
+                    try {
+                        await fetchHealth();
+                        if (await serverVersionOk()) {
+                            void subscribeProductionTradeEvents();
+                            return;
+                        }
+                    } catch {
+                        // No external server yet; continue to the optional
+                        // sidecar attempt below.
+                    }
                     // not running, unhealthy, or wrong mode — serverStart
                     // stops a broken daemon and starts fresh
                     if (status?.running) {

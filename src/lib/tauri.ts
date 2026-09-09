@@ -1334,102 +1334,11 @@ function updateDownloadProgress(event: DownloadEvent) {
     }
 }
 
-export async function checkForUpdates(silent: boolean) {
-    if (!isTauri || updateInFlight) return;
-    // dev build（vite dev / target/debug）不檢查更新 — 否則 dev 環境會
-    // 下載正式版並在重啟時把 debug app 換掉
-    if (import.meta.env.DEV) {
-        if (!silent) {
-            notify({
-                kind: 'info',
-                title: 'Dev build 不檢查更新',
-                body: '開發模式跳過自動更新，避免被正式版取代',
-            });
-        }
-        return;
-    }
-    if (appUpdateState.phase === 'ready') {
-        if (!silent) {
-            notify({
-                kind: 'info',
-                title: `更新 v${appUpdateState.version} 已下載`,
-                body: '請按「重新啟動並更新」完成安裝',
-            });
-        }
-        return;
-    }
-    if (appUpdateState.phase === 'external') {
-        if (!silent) {
-            notify({
-                kind: 'info',
-                title: `有新版 v${appUpdateState.version}`,
-                body: 'RPM／DEB 安裝版請從下載頁或系統套件管理器更新',
-            });
-        }
-        return;
-    }
-    updateInFlight = true;
-    setAppUpdateState({ phase: 'checking' });
-    try {
-        const { check } = await import('@tauri-apps/plugin-updater');
-        const update = await check();
-        if (!update) {
-            setAppUpdateState({ phase: 'idle' });
-            if (!silent) {
-                notify({
-                    kind: 'info',
-                    title: '已是最新版本',
-                    body: '目前沒有可用更新',
-                });
-            }
-            return;
-        }
-        setAppUpdateState({ phase: 'available', version: update.version });
-        const { invoke } = await import('@tauri-apps/api/core');
-        const canInstall = await invoke<boolean>(
-            'supports_in_app_update',
-        ).catch(() => !/Linux/i.test(navigator.userAgent));
-        if (!canInstall) {
-            await update.close().catch(() => undefined);
-            setAppUpdateState({
-                phase: 'external',
-                version: update.version,
-            });
-            notify({
-                kind: 'info',
-                title: `有新版 v${update.version}`,
-                body: 'RPM／DEB 安裝版請從下載頁或系統套件管理器更新',
-            });
-            return;
-        }
-        pendingUpdate = update;
-        setAppUpdateState({
-            phase: 'downloading',
-            version: update.version,
-            downloadedBytes: 0,
-        });
-        await update.download(updateDownloadProgress);
-        setAppUpdateState({ phase: 'ready', version: update.version });
-        notify({
-            kind: 'info',
-            title: `更新 v${update.version} 已下載`,
-            body: '可在方便時重新啟動並完成更新',
-        });
-    } catch (e) {
-        await pendingUpdate?.close().catch(() => undefined);
-        pendingUpdate = null;
-        const message = e instanceof Error ? e.message : String(e);
-        setAppUpdateState({ phase: 'error', error: message });
-        if (!silent) {
-            notify({
-                kind: 'err',
-                title: '更新檢查失敗',
-                body: message,
-            });
-        }
-    } finally {
-        updateInFlight = false;
-    }
+export async function checkForUpdates(_silent: boolean) {
+    // This public Windows build is distributed without Tauri's updater
+    // plugin. Installers are published by GitHub Actions, so do not invoke a
+    // missing plugin and surface the misleading ACL error in Settings.
+    return;
 }
 
 export async function restartAndInstallUpdate() {
