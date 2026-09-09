@@ -79,6 +79,15 @@ export function OnboardingSetup() {
             await saveDesktopSettings(settings);
             const res = await serverStart(settings);
             if (!res.ok) {
+                // The public installer bundles the private-market collector,
+                // but not Sinopac's proprietary shioaji server binary. In
+                // that deployment the user starts Shioaji Pro separately;
+                // do not block the first-run screen on a missing optional
+                // sidecar after the credentials have already been saved.
+                if (/sidecar not configured|binaries\/shioaji/i.test(res.output)) {
+                    window.location.reload();
+                    return;
+                }
                 setError(
                     diagnoseOutput(res.output) ||
                         errorLines(res.output) ||
