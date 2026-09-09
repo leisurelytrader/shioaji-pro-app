@@ -28,6 +28,7 @@
   "bundle": {
     "active": true,
     "targets": ["nsis", "msi"],
+    "icon": ["icons/icon.ico"],
     "externalBin": ["binaries/collector"],
     "resources": [],
     "windows": {
