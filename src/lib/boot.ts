@@ -155,10 +155,12 @@ async function run() {
                     // the optional bundled sidecar.
                     try {
                         await fetchHealth();
-                        if (await serverVersionOk()) {
-                            void subscribeProductionTradeEvents();
-                            return;
-                        }
+                        // The external endpoint belongs to the official
+                        // Shioaji Pro installation. Its API version may be
+                        // newer than this UI's bundled-server expectation;
+                        // a healthy response is sufficient to attach.
+                        void subscribeProductionTradeEvents();
+                        return;
                     } catch {
                         // No external server yet; continue to the optional
                         // sidecar attempt below.
