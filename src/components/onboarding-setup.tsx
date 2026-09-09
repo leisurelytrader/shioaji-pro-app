@@ -77,8 +77,15 @@ export function OnboardingSetup() {
             await saveDesktopSettings({ ...settings, autoStart: false });
             window.location.reload();
             return;
-        } catch {
+        } catch (e) {
             // Official Shioaji Pro is not ready; retain the legacy key flow.
+            // Keep the concrete transport error visible instead of reducing
+            // URL-scope, permission, or connection failures to "not found".
+            const transportError = e instanceof Error ? e.message : String(e);
+            console.warn('[onboarding] official server probe failed', e);
+            if (/url|scope|permission|forbidden|fetch/i.test(transportError)) {
+                setError(`官方 server 連線檢查失敗：${transportError}`);
+            }
         }
         const err = validateDesktopSettings(settings);
         if (err) {
