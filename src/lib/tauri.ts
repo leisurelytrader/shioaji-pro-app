@@ -1028,12 +1028,10 @@ export async function loadDesktopSettings(): Promise<DesktopSettings> {
     // registered by the external-server desktop host (for example
     // `agent_harness_post`). Human UI requests still use the normal HTTP API;
     // Agent-initiated mutations remain fail-closed when the flag is false.
+    // The public desktop build does not bundle the native Agent Harness
+    // commands. Keep this value deterministic and avoid consulting legacy
+    // migration state from older builds.
     const agentHarnessEnabled = false;
-    if (!safeDefaultMigrated) {
-        await store.set('agentHarnessEnabled', agentHarnessEnabled);
-        await store.set('agentHarnessSafeDefaultV1', true);
-        await store.save();
-    }
     const settings = {
         apiKey: (await store.get<string>('apiKey')) ?? '',
         secretKey: (await store.get<string>('secretKey')) ?? '',
