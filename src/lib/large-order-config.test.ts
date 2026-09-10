@@ -10,6 +10,12 @@ import {
 describe('large-order JSON config', () => {
     const workbench = { tab: 'history' as const, from: '2026-09-08T09:00', to: '2026-09-08T13:30', queryThreshold: '399' };
 
+    it('uses zero thresholds and stays disabled until configured', () => {
+        expect(DEFAULT_LARGE_ORDER_SETTINGS.bidThreshold).toBe(0);
+        expect(DEFAULT_LARGE_ORDER_SETTINGS.askThreshold).toBe(0);
+        expect(DEFAULT_LARGE_ORDER_SETTINGS.enabled).toBe(false);
+    });
+
     it('round-trips monitoring and workbench settings', () => {
         const source = createLargeOrderConfigFile({ ...DEFAULT_LARGE_ORDER_SETTINGS, bidThreshold: 399 }, workbench);
         const parsed = parseLargeOrderConfig(serializeLargeOrderConfig(source));

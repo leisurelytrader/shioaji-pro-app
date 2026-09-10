@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { History, Settings2, X } from 'lucide-react';
 import {
     clearLargeOrderEvents,
+    clearAllLargeOrderSettings,
+    getLargeOrderSettings,
     addHistoricalLargeOrderEvents,
     requestDesktopNotificationPermission,
     saveLargeOrderSettings,
@@ -96,6 +98,12 @@ export function LargeOrderWorkbench({ code, onClose }: { code: string; onClose: 
         setTab('monitor');
     };
 
+    const resetAllSettings = () => {
+        clearAllLargeOrderSettings();
+        setSettings(getLargeOrderSettings(code));
+        setConfigMessage('已清除所有商品的大單門檻，預設值為 0；監控已停用');
+    };
+
     const exportConfig = () => {
         const file = createLargeOrderConfigFile(settings, { tab, from, to, queryThreshold });
         const url = URL.createObjectURL(new Blob([serializeLargeOrderConfig(file)], { type: 'application/json' }));
@@ -159,6 +167,7 @@ export function LargeOrderWorkbench({ code, onClose }: { code: string; onClose: 
                             <label><input type='checkbox' checked={settings.popup} onChange={(e) => setSettings({ ...settings, popup: e.target.checked })} /> 應用程式彈跳通知</label>
                             <label><input type='checkbox' checked={settings.desktop} onChange={async (e) => { if (!e.target.checked) { setSettings({ ...settings, desktop: false }); return; } const permission = await requestDesktopNotificationPermission(); setSettings({ ...settings, desktop: permission === 'granted' }); }} /> 桌面通知</label>
                             <button className={styles.primaryButton} onClick={applySettings}>套用監控設定</button>
+                            <button onClick={resetAllSettings}>清除所有商品大單預設值</button>
                             <div className={styles.resultHeader}><span>即時事件 {events.length} 筆</span><button onClick={() => clearLargeOrderEvents(code)}>清除本商品標記</button></div>
                             {events.slice(-30).reverse().map((event) => <div className={styles.eventRow} key={event.id}><b className={event.side === 'bid' ? styles.bid : styles.ask}>{event.side === 'bid' ? '委買' : '委賣'}</b><span>{event.level}檔</span><strong>{event.quantity}口</strong><span>{event.time}</span></div>)}
                             {events.length === 0 && <p className={styles.empty}>等待五檔行情跨越門檻…</p>}

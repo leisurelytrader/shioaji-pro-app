@@ -22,9 +22,9 @@ export interface LargeOrderSettings {
 }
 
 export const DEFAULT_LARGE_ORDER_SETTINGS: LargeOrderSettings = {
-    enabled: true,
-    bidThreshold: 199,
-    askThreshold: 199,
+    enabled: false,
+    bidThreshold: 0,
+    askThreshold: 0,
     bidLevels: [1, 2, 3, 4, 5],
     askLevels: [1, 2, 3, 4, 5],
     trigger: 'cross-above',
@@ -125,6 +125,20 @@ export function saveLargeOrderSettings(next: LargeOrderSettings, code?: string) 
     settingsVersion += 1;
     settingsListeners.forEach((listener) => listener());
 }
+
+/** Reset the global defaults and remove every symbol-specific override. */
+export function clearAllLargeOrderSettings() {
+    settings = { ...settingsFromDefaults() };
+    settingsByCode = {};
+    try {
+        localStorage.removeItem(SETTINGS_KEY);
+        localStorage.removeItem(SETTINGS_BY_CODE_KEY);
+    } catch { /* private storage unavailable */ }
+    previous.clear();
+    lastAlert.clear();
+    settingsVersion += 1;
+    settingsListeners.forEach((listener) => listener());
+}
 function getLargeOrderSettingsVersion() { return settingsVersion; }
 export function useLargeOrderSettings(code?: string) {
     useSyncExternalStore(subscribeLargeOrderSettings, getLargeOrderSettingsVersion);
@@ -173,6 +187,8 @@ export function ingestBidAskForLargeOrders(bidask: SseBidAsk) {
     const next = new Map<string, number>();
     const now = eventTimestamp(bidask.date, bidask.time);
     const check = (side: DepthSide, levels: DepthLevel[], threshold: number, volumes: number[], prices: string[]) => {
+        // Zero means "not configured", never "alert on any quantity".
+        if (threshold <= 0) return;
         for (const level of levels) {
             const index = level - 1;
             const quantity = Number(volumes[index] ?? 0);
